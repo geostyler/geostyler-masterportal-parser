@@ -1,9 +1,14 @@
 import {
+  LineSymbolizer,
   ReadStyleResult,
+  Rule,
   Style,
   StyleParser,
-  WriteStyleResult
+  Symbolizer,
+  WriteStyleResult,
+  isGeoStylerFunction
 } from 'geostyler-style';
+import { hexToRgba } from './Util/MpUtil';
 
 type MpStyle = {[key: string]: any};
 
@@ -46,13 +51,76 @@ export class MasterportalStyleParser implements StyleParser<MpStyle> {
   writeStyle(geoStylerStyle: Style): Promise<WriteStyleResult<MpStyle>> {
     return new Promise<WriteStyleResult<MpStyle>>(resolve => {
       try {
-        resolve({});
+        const mpStyle: MpStyle = this.geoStylerStyleToMpStyle(geoStylerStyle);
+        resolve({
+          output: mpStyle
+        });
       } catch (e) {
         resolve({
           errors: [e]
         });
       }
     });
+  }
+
+  geoStylerStyleToMpStyle(geoStylerStyle: Style): MpStyle {
+    const styleId = geoStylerStyle.name || '';
+    const mpStyle: MpStyle = {
+      styleId,
+      rules: geoStylerStyle.rules.map(rule => this.geoStylerRuleToMpRule(rule))
+    };
+
+    return mpStyle;
+  }
+
+  geoStylerRuleToMpRule(rule: Rule): any {
+    const style = this.geoStylerSymbolizersToMpRuleStyle(rule.symbolizers);
+    const mpRule = {
+      style
+    };
+    return mpRule;
+  }
+
+  geoStylerSymbolizersToMpRuleStyle(symbolizers: Symbolizer[]): any {
+    const mpRuleStyles = symbolizers.map(symbolizer => this.geoStylerSymbolizerToMpRuleStyle(symbolizer));
+    const mpRuleStyle = mpRuleStyles.reduce((prev, cur) => ({...prev, ...cur}), {});
+    return mpRuleStyle;
+  }
+
+  geoStylerSymbolizerToMpRuleStyle(symbolizer: Symbolizer): any {
+    switch (symbolizer.kind) {
+      case 'Line':
+        return this.geoStylerLineSymbolizerToMpLineStyle(symbolizer);
+      default:
+        return {};
+    }
+  }
+
+  geoStylerLineSymbolizerToMpLineStyle(symbolizer: LineSymbolizer): any {
+    const {
+      cap,
+      color,
+      dasharray,
+      join,
+      width
+    } = symbolizer;
+    const mpLineStyle: any = {};
+    if (color !== undefined && !isGeoStylerFunction(color)) {
+      mpLineStyle.lineStrokeColor = hexToRgba(color, 1);
+    }
+    if (width !== undefined && !isGeoStylerFunction(width)) {
+      mpLineStyle.lineStrokeWidth = width;
+    }
+    if (join !== undefined && !isGeoStylerFunction(join)) {
+      mpLineStyle.lineStrokeJoin = join;
+    }
+    if (cap !== undefined && !isGeoStylerFunction(cap)) {
+      mpLineStyle.lineStrokeCap = cap;
+    }
+    if (dasharray !== undefined && !isGeoStylerFunction(dasharray)) {
+      mpLineStyle.lineStrokeDash = [...dasharray];
+    }
+    return mpLineStyle;
   }
 }
 
